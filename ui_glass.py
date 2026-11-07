@@ -27,6 +27,16 @@ PALETTES = {
 }
 
 
+THEME_NAMES = [('light','Light'),('dark','Dark'),('navy_gold','Navy Gold'),
+               ('ocean','Ocean Blue'),('emerald','Emerald'),('purple','Purple')]
+for key, accent, bg, glow in (
+    ('navy_gold','#E6BD68','#10182A','#443922'),
+    ('ocean','#51C7F5','#071E30','#123F60'),
+    ('emerald','#54DBAD','#0B241E','#19513E'),
+    ('purple','#C5A0FF','#20132F','#4B2B66')):
+    PALETTES[key] = dict(PALETTES['dark'], accent=accent, bg=bg, glow=glow)
+
+
 def pixmap(data):
     result = QPixmap()
     result.loadFromData(base64.b64decode(data))
@@ -169,6 +179,8 @@ class GlassApp:
                     owner.request_stop();event.ignore()
                 else:
                     if owner.installing_update:
+                        owner.update_cancel.set()
+                        owner.status.setText('Cancelling update…')
                         event.ignore();return
                     owner.save_preferences();event.accept()
         self.window=Window()
@@ -204,9 +216,12 @@ class GlassApp:
         titles.addWidget(self.label('Welcome back, '+self.user_name,16))
         titles.addWidget(self.label('Your automation workspace',9,'muted'))
         header_layout.addLayout(titles,1)
-        self.theme_switch=ThemeSwitch();self.theme_switch.toggled.connect(lambda dark:self.set_theme('dark' if dark else 'light'))
-        header_layout.addWidget(self.theme_switch)
+        self.theme_picker=QComboBox();self.theme_picker.setToolTip('Choose your theme')
+        for key,label in THEME_NAMES:self.theme_picker.addItem(label,key)
+        self.theme_picker.currentIndexChanged.connect(lambda _:self.set_theme(self.theme_picker.currentData()))
+        header_layout.addWidget(self.theme_picker)
         self.update_busy=False;self.installing_update=False;self.available_update=None
+        self.update_cancel=threading.Event()
         self.update_button=QPushButton('Check for updates')
         self.update_button.clicked.connect(self.update_clicked)
         header_layout.addWidget(self.update_button)
@@ -276,7 +291,9 @@ class GlassApp:
         self.path.setText(self.settings.value('source',''))
         self.parallel.setValue(int(self.settings.value('parallel',3)))
         self.timeout.setValue(int(self.settings.value('timeout',600)))
-        saved_mode=self.settings.value('theme','light');self.theme_switch.setChecked(saved_mode=='dark');self.set_theme(saved_mode)
+        saved_mode=self.settings.value('theme','light')
+        if saved_mode not in PALETTES:saved_mode='light'
+        self.theme_picker.setCurrentIndex(self.theme_picker.findData(saved_mode));self.set_theme(saved_mode)
         if self.path.text():
             try:self.load_results()
             except Exception:pass
@@ -290,6 +307,9 @@ class GlassApp:
         elif key=='Settings':self.parallel.setFocus()
 
     def update_clicked(self):
+        if self.installing_update:
+            self.update_cancel.set();self.update_button.setEnabled(False)
+            self.update_button.setText('Cancelling…');return
         if self.update_busy:return
         if self.available_update:self.offer_update()
         else:self.check_updates(True)
@@ -314,11 +334,20 @@ class GlassApp:
             'Version '+release['version']+' is available.\n\n'+release.get('notes','')[:3000]+
             '\n\nDownload, install and restart now?')
         if answer!=QMessageBox.StandardButton.Yes:return
+        self.update_cancel.clear()
         self.update_busy=True;self.installing_update=True
         self.set_running(True);self.stop_button.setEnabled(False)
-        self.update_button.setEnabled(False);self.update_button.setText('Downloading…')
+        self.pause_button.setEnabled(False)
+        self.update_button.setEnabled(True);self.update_button.setText('Cancel update')
+        self.status.setText('Connecting to GitHub…')
         def worker():
-            try:self.events.put(('update_downloaded',(app_updates.download_update(release, lambda done,total:self.events.put(('update_progress',(done,total)))),None)))
+            try:
+                path=app_updates.download_update(release,
+                    progress=lambda done,total:self.events.put(('update_progress',(done,total))),
+                    cancel=self.update_cancel,
+                    status=lambda message:self.events.put(('update_status',message)))
+                self.events.put(('update_downloaded',(path,None)))
+            except app_updates.DownloadCancelled:self.events.put(('update_downloaded',(None,'cancelled')))
             except Exception as exc:self.events.put(('update_downloaded',(None,str(exc))))
         threading.Thread(target=worker,daemon=True).start()
 
@@ -353,7 +382,9 @@ class GlassApp:
         return result['name']
 
     def set_theme(self,mode):
-        self.mode=mode;p=PALETTES[mode];dark=mode=='dark'
+        if mode not in PALETTES:mode='light'
+        self.mode=mode;p=PALETTES[mode];dark=mode!='light'
+        self.settings.setValue('theme',mode)
         self.ambient.mode=mode;self.ambient.update()
         if hasattr(self,'ring'):self.ring.mode=mode;self.ring.update()
         for card in self.cards:card.mode=mode;card.update()
@@ -373,11 +404,11 @@ class GlassApp:
             QPushButton {{background:{p['soft']};border:1px solid {p['border']};border-radius:11px;padding:10px 14px;font-weight:600;}}
             QPushButton:hover {{border:1px solid {p['accent']};background:{p['field']};}}
             QPushButton:pressed {{padding-top:15px;padding-bottom:11px;}}
-            QPushButton#primary {{border-radius:20px;background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #55A8FF,stop:.45 #1686FF,stop:1 #0761DB);color:white;border:1px solid rgba(255,255,255,145);}}
-            QPushButton#primary:hover {{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #70B8FF,stop:1 #0874F7);}}
+            QPushButton#primary {{border-radius:20px;background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {p['accent']},stop:1 {p['glow']});color:white;border:1px solid rgba(255,255,255,145);}}
+            QPushButton#primary:hover {{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {p['accent']},stop:1 {p['glow']});}}
             QPushButton#stop {{border-radius:20px;color:{'#FFA6B7' if dark else '#B93850'};}}
             QPushButton[compact="true"] {{padding:8px 12px;border-radius:12px;}}
-            QFrame#sidebar {{background:#101D43;border-radius:22px;}}
+            QFrame#sidebar {{background:{p['bg'] if dark else "#101D43"};border-radius:22px;}}
             QFrame#sidebar QLabel {{color:#C4CFE8;}}
             QPushButton#nav {{background:transparent;color:#DDE6FB;text-align:left;border-radius:12px;padding:12px 16px;border:0;}}
             QPushButton#nav:checked {{background:#424AAB;color:white;}}
@@ -540,12 +571,17 @@ class GlassApp:
                 elif manual:QMessageBox.information(self.window,'Updates','You are using the latest version.')
             elif kind=='update_progress':
                 done,total=value
-                self.update_button.setText(f'Downloading {100*done/max(1,total):.0f}%')
+                self.update_button.setText(f'Cancel update · {100*done/max(1,total):.0f}%')
                 self.status.setText(f'Update: {done/1048576:.1f} / {total/1048576:.1f} MB')
+            elif kind=='update_status':
+                self.status.setText(value)
             elif kind=='update_downloaded':
                 path,error=value
+                if not error and self.update_cancel.is_set():
+                    Path(path).unlink(missing_ok=True);Path(path).parent.rmdir();error='cancelled'
                 if not error:
                     try:
+                        self.status.setText('Installing update and restarting…')
                         app_updates.install_update(path)
                         self.qt.quit()
                         continue
@@ -553,7 +589,8 @@ class GlassApp:
                 self.update_busy=False;self.installing_update=False
                 self.set_running(False);self.update_button.setEnabled(True)
                 self.update_button.setText('Update available')
-                QMessageBox.warning(self.window,'Update failed',error)
+                self.status.setText('Update cancelled' if error=='cancelled' else 'Update failed · Retry available')
+                if error!='cancelled':QMessageBox.warning(self.window,'Update failed',error)
             elif kind=='log':self.append_log(value)
             elif kind=='failure':
                 self.failed=True;self.append_log('Run failed: '+value+'. Check Chrome, input and output file lock.')

@@ -7,10 +7,12 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
+from urllib.error import URLError
 from urllib.request import urlopen, Request
 from urllib.parse import urlsplit
 
-APP_VERSION = '3.4.1'
+APP_VERSION = '3.4.2'
 # Set once before building the first update-enabled release. Never put tokens here.
 UPDATE_FEED_URL = 'https://github.com/KaamChor-prog/KaamChor-Updates/releases/latest/download/latest.json'
 MAX_EXE_BYTES = 500 * 1024 * 1024
@@ -60,33 +62,74 @@ def check_update():
     return release
 
 
-def download_update(release, progress=None):
+DOWNLOAD_TIMEOUT = 15
+DOWNLOAD_DEADLINE = 180
+DOWNLOAD_ATTEMPTS = 3
+
+
+class DownloadCancelled(Exception):
+    pass
+
+
+def download_update(release, progress=None, cancel=None, status=None):
+    """Read available bytes promptly; bound stalls, retries and total elapsed time."""
     folder = Path(tempfile.mkdtemp(prefix='KaamChor-update-'))
     target = folder / 'KaamChor_Pro.exe'
-    digest = hashlib.sha256()
-    count = 0
+    started = time.monotonic()
+
+    def check_cancelled():
+        if cancel is not None and cancel.is_set():
+            raise DownloadCancelled('Update cancelled. Existing app was not changed.')
+        if time.monotonic() - started >= DOWNLOAD_DEADLINE:
+            raise TimeoutError('Update download took too long. Please retry or download from the release page.')
+
     try:
-        if progress: progress(0, release['size'])
-        with urlopen(https_url(release['url']), timeout=30) as response, target.open('wb') as out:
-            https_url(response.geturl())
-            while True:
-                chunk = response.read(256 * 1024)
-                if not chunk:
-                    break
-                count += len(chunk)
-                if count > release['size'] or count > MAX_EXE_BYTES:
-                    raise ValueError('Download exceeds expected size.')
-                digest.update(chunk)
-                out.write(chunk)
-                if progress: progress(count, release['size'])
-        if count != release['size'] or digest.hexdigest().lower() != release['sha256'].lower():
+        for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+            check_cancelled()
+            digest = hashlib.sha256()
+            count = 0
+            if progress: progress(0, release['size'])
+            if status: status('Connecting to GitHub…' if attempt == 1 else f'Retrying download ({attempt}/{DOWNLOAD_ATTEMPTS})…')
+            request = Request(https_url(release['url']), headers={
+                'User-Agent': 'KaamChor-Pro/' + APP_VERSION,
+                'Accept': 'application/octet-stream', 'Accept-Encoding': 'identity',
+                'Cache-Control': 'no-cache'})
+            try:
+                with urlopen(request, timeout=DOWNLOAD_TIMEOUT) as response, target.open('wb') as out:
+                    https_url(response.geturl())
+                    # read1 returns available data, instead of waiting to fill a large block.
+                    read = getattr(response, 'read1', response.read)
+                    while True:
+                        check_cancelled()
+                        chunk = read(64 * 1024)
+                        check_cancelled()
+                        if not chunk:
+                            break
+                        count += len(chunk)
+                        if count > release['size'] or count > MAX_EXE_BYTES:
+                            raise ValueError('Download exceeds expected size.')
+                        digest.update(chunk)
+                        out.write(chunk)
+                        if progress: progress(count, release['size'])
+                if count != release['size']:
+                    raise ConnectionError('Download was interrupted before all bytes arrived.')
+                break
+            except (OSError, URLError) as exc:
+                check_cancelled()
+                if attempt == DOWNLOAD_ATTEMPTS:
+                    raise TimeoutError('GitHub download stalled or failed after 3 attempts. Please retry or use the release page.') from exc
+        check_cancelled()
+        if status: status('Verifying downloaded update…')
+        if digest.hexdigest().lower() != release['sha256'].lower():
             raise ValueError('Download verification failed. Existing app was not changed.')
         with target.open('rb') as source:
             if source.read(2) != b'MZ':
                 raise ValueError('Update is not a Windows executable.')
+        check_cancelled()
         return target
     except Exception:
         target.unlink(missing_ok=True)
+        folder.rmdir()
         raise
 
 
