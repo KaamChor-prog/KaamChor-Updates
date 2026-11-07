@@ -42,7 +42,7 @@ jobs:
         run: |
           gh release view $env:APP_TAG
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:APP_TAG --title "KaamChor Pro $env:APP_TAG" --notes "Six saved themes; cancellable update downloads with bounded retries and clearer status." --target $env:GITHUB_SHA
+            gh release create $env:APP_TAG --title "KaamChor Pro $env:APP_TAG" --notes "Ten saved themes, premium automation artwork, matching theme accents and batch summary popups." --target $env:GITHUB_SHA
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           gh release upload $env:APP_TAG dist/KaamChor_Pro.exe dist/latest.json --clobber
@@ -52,7 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          foreach ($tag in @('v3.1.0','v3.2.0','v3.2.1','v3.4.0','v3.4.1')) {
+          foreach ($tag in @('v3.1.0','v3.2.0','v3.2.1','v3.4.0','v3.4.1','v3.4.2')) {
             gh release view $tag *> $null
             if ($LASTEXITCODE -eq 0) {
               gh release delete $tag --yes

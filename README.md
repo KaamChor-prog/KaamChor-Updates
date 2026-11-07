@@ -6,7 +6,7 @@ Download the latest `KaamChor_Pro.exe` from Releases and open it. Chrome is requ
 
 ## Themes
 
-Choose Light, Dark, Navy Gold, Ocean Blue, Emerald or Purple from the header. Your selection is saved on this computer.
+Choose Light, Dark, Navy Gold, Ocean Blue, Emerald Purple, Sunset Copper, Rose Quartz, Arctic Teal or Graphite from the header. Your selection is saved on this computer.
 
 ## Updates
 
@@ -17,3 +17,7 @@ Use Check for updates. Downloads show percentage and MB, support cancellation, r
 Use Python 3.12 on Windows. Install requirements, run `python -m unittest discover -s tests -v`, then use Build_EXE.bat after creating the local .venv. GitHub Actions also builds and publishes the Windows EXE on main.
 
 Never upload student spreadsheets, passwords or local settings to this public repository.
+
+## Workspace
+
+Premium automation artwork replaces the Baba dashboard banner. All ten themes colour the background, navigation and progress ring. A batch summary popup shows completed accounts and accounts requiring attention, with a shortcut to results.

@@ -12,7 +12,7 @@ from urllib.error import URLError
 from urllib.request import urlopen, Request
 from urllib.parse import urlsplit
 
-APP_VERSION = '3.4.2'
+APP_VERSION = '3.5.0'
 # Set once before building the first update-enabled release. Never put tokens here.
 UPDATE_FEED_URL = 'https://github.com/KaamChor-prog/KaamChor-Updates/releases/latest/download/latest.json'
 MAX_EXE_BYTES = 500 * 1024 * 1024

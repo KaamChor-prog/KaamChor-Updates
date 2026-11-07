@@ -28,12 +28,17 @@ PALETTES = {
 
 
 THEME_NAMES = [('light','Light'),('dark','Dark'),('navy_gold','Navy Gold'),
-               ('ocean','Ocean Blue'),('emerald','Emerald'),('purple','Purple')]
+               ('ocean','Ocean Blue'),('emerald','Emerald'),('purple','Purple'),('sunset','Sunset Copper'),('rose','Rose Quartz'),
+               ('arctic','Arctic Teal'),('graphite','Graphite')]
 for key, accent, bg, glow in (
     ('navy_gold','#E6BD68','#10182A','#443922'),
     ('ocean','#51C7F5','#071E30','#123F60'),
     ('emerald','#54DBAD','#0B241E','#19513E'),
-    ('purple','#C5A0FF','#20132F','#4B2B66')):
+    ('purple','#C5A0FF','#20132F','#4B2B66'),
+    ('sunset','#FFBD8C','#281912','#5B3524'),
+    ('rose','#FFB2D4','#291723','#582C46'),
+    ('arctic','#8CE7EB','#10252B','#21535A'),
+    ('graphite','#C8D2E2','#191D24','#3B4656')):
     PALETTES[key] = dict(PALETTES['dark'], accent=accent, bg=bg, glow=glow)
 
 
@@ -50,11 +55,13 @@ class Ambient(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.fillRect(self.rect(), QColor(PALETTES[self.mode]['bg']))
-        colors = ['#B7D6FF', '#D9C8F7', '#BFEAE4'] if self.mode == 'light' else ['#183B72', '#352356', '#103F48']
+        palette = PALETTES[self.mode]
+        colors = ['#B7D6FF', '#D9C8F7', '#BFEAE4'] if self.mode == 'light' else [palette['glow'], palette['accent'], palette['bg']]
         for x, y, radius, color in ((.05,.1,.65,colors[0]), (.93,.15,.55,colors[1]), (.65,.95,.6,colors[2])):
             r = max(self.width(), self.height())*radius
             grad = QRadialGradient(self.width()*x,self.height()*y,r)
             c = QColor(color)
+            if self.mode != 'light': c.setAlpha(70)
             grad.setColorAt(0,c)
             c.setAlpha(0)
             grad.setColorAt(1,c)
@@ -78,7 +85,7 @@ class GlassCard(QFrame):
         box=QRectF(self.rect()).adjusted(1,1,-1,-1)
         palette=PALETTES[self.mode]
         fill=QLinearGradient(box.topLeft(),box.bottomRight())
-        c=QColor('#101D43') if self.objectName()=='sidebar' else QColor(self.tint) if self.tint and self.mode=='light' else QColor(*palette['card'])
+        c=QColor('#101D43' if self.mode=='light' else palette['bg']) if self.objectName()=='sidebar' else QColor(self.tint) if self.tint and self.mode=='light' else QColor(*palette['card'])
         fill.setColorAt(0,c)
         c2=QColor(c);c2.setAlpha(255 if self.objectName()=='sidebar' else max(110,c.alpha()-35))
         fill.setColorAt(1,c2)
@@ -91,15 +98,35 @@ class GlassCard(QFrame):
 
 class HeroBanner(QWidget):
     def __init__(self,data):
-        super().__init__();self.art=pixmap(data);self.setMinimumHeight(240);self.setMaximumHeight(280)
-        self.setAccessibleName('KaamChor Pro. Smart work. More chill.')
+        super().__init__();self.art=pixmap(data);self.mode='light'
+        self.setMinimumHeight(230);self.setMaximumHeight(280)
+        self.setAccessibleName('KaamChor Pro automation workspace')
     def paintEvent(self,event):
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        path=QPainterPath();path.addRoundedRect(QRectF(self.rect()),18,18);p.setClipPath(path)
-        p.fillRect(self.rect(),QColor('#152854'))
-        # Fit the complete banner without cropping the logo or mascot.
+        path=QPainterPath();path.addRoundedRect(QRectF(self.rect()),22,22);p.setClipPath(path)
+        p.fillRect(self.rect(),QColor('#0C1428'))
         scaled=self.art.scaled(self.size(),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)
-        p.drawPixmap((self.width()-scaled.width())//2,(self.height()-scaled.height())//2,scaled)
+        p.drawPixmap(self.width()-scaled.width(),(self.height()-scaled.height())//2,scaled)
+        shade=QLinearGradient(0,0,self.width()*.72,0)
+        shade.setColorAt(0,QColor(7,15,34,248));shade.setColorAt(.7,QColor(7,15,34,190));shade.setColorAt(1,QColor(7,15,34,0))
+        p.fillRect(self.rect(),shade)
+        p.setPen(QColor(PALETTES[self.mode]['accent']));p.setFont(QFont('Segoe UI',10,QFont.Weight.Bold))
+        p.drawText(QRectF(28,30,self.width()*.55,28),'YOUR AUTOMATION COMMAND CENTRE')
+        p.setPen(QColor('#FFFFFF'));p.setFont(QFont('Segoe UI',28,QFont.Weight.Bold))
+        p.drawText(QRectF(28,72,self.width()*.57,54),'Smart work. More chill.')
+        p.setPen(QColor('#CDD9F1'));p.setFont(QFont('Segoe UI',11))
+        p.drawText(QRectF(30,138,self.width()*.49,66),Qt.TextFlag.TextWordWrap,'Import your students. Run your workflow. Collect every published link in one place.')
+
+
+def workspace_icon():
+    image=QPixmap(128,128);image.fill(Qt.GlobalColor.transparent)
+    p=QPainter(image);p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    gradient=QLinearGradient(0,0,128,128)
+    gradient.setColorAt(0,QColor('#276DF0'));gradient.setColorAt(1,QColor('#7545C7'))
+    p.setBrush(gradient);p.setPen(Qt.PenStyle.NoPen);p.drawRoundedRect(QRectF(2,2,124,124),30,30)
+    p.setPen(QColor('white'));p.setFont(QFont('Segoe UI',38,QFont.Weight.Bold))
+    p.drawText(QRectF(0,0,128,124),Qt.AlignmentFlag.AlignCenter,'K')
+    p.end();return QIcon(image)
 
 
 class ProgressRing(QWidget):
@@ -109,7 +136,7 @@ class ProgressRing(QWidget):
     def paintEvent(self,event):
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
         ring=QRectF(9,9,88,88);p.setPen(QPen(QColor('#D9DFF5' if self.mode=='light' else '#334366'),9));p.drawEllipse(ring)
-        p.setPen(QPen(QColor('#6856DC'),9,Qt.PenStyle.SolidLine,Qt.PenCapStyle.RoundCap));p.drawArc(ring,90*16,-int(self.value*3.6*16))
+        p.setPen(QPen(QColor(PALETTES[self.mode]['accent']),9,Qt.PenStyle.SolidLine,Qt.PenCapStyle.RoundCap));p.drawArc(ring,90*16,-int(self.value*3.6*16))
         p.setPen(QColor(PALETTES[self.mode]['ink']));p.setFont(QFont('Segoe UI',21,QFont.Weight.Bold))
         p.drawText(QRectF(0,24,106,38),Qt.AlignmentFlag.AlignCenter,str(self.value)+'%')
         p.setFont(QFont('Segoe UI',9));p.drawText(QRectF(0,60,106,23),Qt.AlignmentFlag.AlignCenter,'Progress')
@@ -161,8 +188,7 @@ class GlassApp:
         families=set(QFontDatabase.families())
         self.font_family=next((f for f in ('SF Pro Display','SF Pro Text','Segoe UI Variable','Segoe UI','Inter','DejaVu Sans') if f in families),'Sans Serif')
         self.qt.setFont(QFont(self.font_family,10))
-        from brand_art import AVATAR_PNG
-        self.icon=QIcon(pixmap(AVATAR_PNG))
+        self.icon=workspace_icon()
         self.qt.setWindowIcon(self.icon)
         self.mode='light'
         self.events=queue.Queue();self.stop=threading.Event();self.running=False;self.log_messages=[]
@@ -193,8 +219,8 @@ class GlassApp:
         self.cards=[]
         sidebar=self.card();sidebar.setObjectName("sidebar");sidebar.setFixedWidth(200)
         side=QVBoxLayout(sidebar);side.setContentsMargins(16,24,16,20);side.setSpacing(10)
-        from brand_art import HERO_PNG, AVATAR_PNG
-        avatar=QLabel();avatar.setPixmap(pixmap(AVATAR_PNG).scaled(88,88,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));avatar.setFixedHeight(94);avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        from workspace_art import HERO_PNG
+        avatar=QLabel();avatar.setPixmap(self.icon.pixmap(88,88));avatar.setFixedHeight(94);avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         side.addWidget(avatar)
         wordmark=QLabel('<b>KaamChor <span style="color:#F5BD47">Pro</span></b>');wordmark.setStyleSheet('font-size:20px;color:white;background:transparent;');wordmark.setAlignment(Qt.AlignmentFlag.AlignCenter);side.addWidget(wordmark)
         strap=self.label('Smart work. More chill.',9,'muted');strap.setAlignment(Qt.AlignmentFlag.AlignCenter);side.addWidget(strap);side.addSpacing(20)
@@ -226,7 +252,7 @@ class GlassApp:
         self.update_button.clicked.connect(self.update_clicked)
         header_layout.addWidget(self.update_button)
         layout.addWidget(header)
-        hero=HeroBanner(HERO_PNG);layout.addWidget(hero)
+        self.hero=HeroBanner(HERO_PNG);layout.addWidget(self.hero)
         welcome=QHBoxLayout();welcome.addWidget(self.label('Overview',13,'muted'),1)
         self.status=self.label('Ready to start',10,'badge');welcome.addWidget(self.status)
         layout.addLayout(welcome)
@@ -386,6 +412,11 @@ class GlassApp:
         self.mode=mode;p=PALETTES[mode];dark=mode!='light'
         self.settings.setValue('theme',mode)
         self.ambient.mode=mode;self.ambient.update()
+        self.hero.mode=mode;self.hero.update()
+        self.theme_picker.blockSignals(True)
+        self.theme_picker.setCurrentIndex(self.theme_picker.findData(mode))
+        self.theme_picker.blockSignals(False)
+        self.refresh_results()
         if hasattr(self,'ring'):self.ring.mode=mode;self.ring.update()
         for card in self.cards:card.mode=mode;card.update()
         self.window.setStyleSheet(f'''
@@ -404,14 +435,14 @@ class GlassApp:
             QPushButton {{background:{p['soft']};border:1px solid {p['border']};border-radius:11px;padding:10px 14px;font-weight:600;}}
             QPushButton:hover {{border:1px solid {p['accent']};background:{p['field']};}}
             QPushButton:pressed {{padding-top:15px;padding-bottom:11px;}}
-            QPushButton#primary {{border-radius:20px;background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {p['accent']},stop:1 {p['glow']});color:white;border:1px solid rgba(255,255,255,145);}}
+            QPushButton#primary {{border-radius:20px;background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {p['accent']},stop:1 {p['accent']});color:{'#071426' if dark else '#FFFFFF'};border:1px solid rgba(255,255,255,145);}}
             QPushButton#primary:hover {{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {p['accent']},stop:1 {p['glow']});}}
             QPushButton#stop {{border-radius:20px;color:{'#FFA6B7' if dark else '#B93850'};}}
             QPushButton[compact="true"] {{padding:8px 12px;border-radius:12px;}}
             QFrame#sidebar {{background:{p['bg'] if dark else "#101D43"};border-radius:22px;}}
             QFrame#sidebar QLabel {{color:#C4CFE8;}}
             QPushButton#nav {{background:transparent;color:#DDE6FB;text-align:left;border-radius:12px;padding:12px 16px;border:0;}}
-            QPushButton#nav:checked {{background:#424AAB;color:white;}}
+            QPushButton#nav:checked {{background:{p['glow']};color:white;border:1px solid {p['accent']};}}
             QLabel#monogram {{background:{p['accent']};color:white;border-radius:15px;}}
             QPushButton:disabled {{color:{p['muted']};background:{p['soft']};border:1px solid {p['border']};}}
             QFrame#divider {{background:{p['border']};border:0;}}
@@ -598,6 +629,24 @@ class GlassApp:
                 self.running=False;self.set_running(False);self.bar.setRange(0,max(1,self.total_count));self.bar.setValue(self.completed_count)
                 self.status.setText('Stopped' if self.stop.is_set() else 'Needs attention' if self.failed else 'Batch finished')
                 self.run_hint.setText('Check the output Status column.')
+                self.show_batch_summary()
+
+    def show_batch_summary(self):
+        dialog=QDialog(self.window);dialog.setWindowTitle('Batch summary');dialog.setMinimumWidth(430)
+        p=PALETTES[self.mode]
+        dialog.setStyleSheet(f"QDialog {{background:{p['bg']};}}")
+        box=QVBoxLayout(dialog);box.setContentsMargins(28,26,28,26);box.setSpacing(16)
+        title='Automation stopped' if self.stop.is_set() else 'Your batch is complete'
+        box.addWidget(self.label(title,21))
+        done=sum(r['status']=='Done' for r in self.records.values())
+        attention=sum(r['status'] in ('Failed','Review','Stopped') for r in self.records.values())
+        box.addWidget(self.label(f'{done} completed  ·  {attention} need attention',13))
+        box.addWidget(self.label('Your published links and account details are ready in Student results.',10,'muted'))
+        buttons=QHBoxLayout();results=QPushButton('View results');close=QPushButton('Close')
+        results.clicked.connect(lambda:(self.navigate('Results'),dialog.accept()))
+        close.clicked.connect(dialog.accept);buttons.addWidget(results);buttons.addWidget(close);box.addLayout(buttons)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.summary_dialog=dialog;dialog.open()
 
     def run(self):
         if self.cancelled:return

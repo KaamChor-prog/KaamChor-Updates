@@ -13,6 +13,6 @@ if __name__ == '__main__':
     path=Path(sys.argv[1]); version(sys.argv[2]); https_url(sys.argv[3])
     result={'version':sys.argv[2], 'url':sys.argv[3], 'size':path.stat().st_size,
             'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
-            'notes':'Performance improvements and fixes.'}
+            'notes':'Ten saved themes, premium automation artwork, matching theme accents and batch summary popups.'}
     Path('latest.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
     print('Created latest.json. Edit notes, upload EXE first, then latest.json.')

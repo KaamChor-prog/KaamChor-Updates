@@ -17,7 +17,7 @@ class Updates(unittest.TestCase):
         for bad in ('3.1','latest',None,'3.1.0-beta'):
             with self.assertRaises(ValueError):u.version(bad)
     def test_feed(self):
-        release=dict(version='3.5.0',url='https://example.com/app.exe',sha256='a'*64,size=10)
+        release=dict(version=f'{u.version(u.APP_VERSION)[0]+1}.0.0',url='https://example.com/app.exe',sha256='a'*64,size=10)
         with patch.object(u,'UPDATE_FEED_URL','https://example.com/latest.json'),patch.object(u,'fetch_json',return_value=release):
             self.assertEqual(u.check_update(),release)
             release['url']='http://example.com/app.exe'
