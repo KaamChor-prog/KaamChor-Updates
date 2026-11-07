@@ -1,0 +1,49 @@
+name: Build Windows EXE
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Test
+        run: python -m unittest discover -s tests -v
+      - name: Build Windows application
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --icon app_icon.ico --name KaamChor_Pro --collect-all playwright Aryan_Remix.py
+      - name: Prepare verified update manifest
+        shell: pwsh
+        run: |
+          python Prepare_Release.py dist/KaamChor_Pro.exe
+          Copy-Item latest.json dist/latest.json
+          $version = python -c "from app_updates import APP_VERSION; print(APP_VERSION)"
+          "APP_TAG=v$version" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KaamChor-Pro-Windows
+          path: |
+            dist/KaamChor_Pro.exe
+            dist/latest.json
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:APP_TAG
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:APP_TAG --title "KaamChor Pro $env:APP_TAG" --notes "Refined Baba interface and update download progress." --target $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          gh release upload $env:APP_TAG dist/KaamChor_Pro.exe dist/latest.json --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
