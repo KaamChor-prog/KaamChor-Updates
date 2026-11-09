@@ -177,6 +177,43 @@ class FixTests(unittest.TestCase):
         field.fill.assert_awaited_once_with('student@example.com', timeout=3000)
         submit.click.assert_awaited_once()
 
+    def test_provider_repeated_email_is_bounded(self):
+        async def run(host):
+            engine = self.engine()
+            root = MagicMock(url='https://' + host + '/signin')
+            email, submit = MagicMock(), MagicMock()
+            value = {'text': ''}
+            async def fill(text, **kwargs):
+                value['text'] = text
+            email.fill = AsyncMock(side_effect=fill)
+            email.input_value = AsyncMock(side_effect=lambda **kwargs: value['text'])
+            submit.is_enabled = AsyncMock(return_value=True)
+            submit.click = AsyncMock()
+            root.get_by_text.return_value = None
+            root.get_by_role.return_value = submit
+            def locate(selector):
+                if '#identifierId' in selector:
+                    return email
+                if 'identifierNext' in selector:
+                    return submit
+                return None
+            root.locator.side_effect = locate
+            engine.visible = AsyncMock(side_effect=lambda x: x)
+            page, seen = MagicMock(frames=[root]), set()
+            item = {'row': 2, 'email': 'student@example.com'}
+            await engine.handle_login_fields(page, item, seen)
+            await engine.handle_login_fields(page, item, seen)
+            self.assertEqual(submit.click.await_count, 1)
+            value['text'] = ''  # A second identifier page at the same URL.
+            await engine.handle_login_fields(page, item, seen)
+            self.assertEqual(submit.click.await_count, 2)
+            value['text'] = ''  # A persistent error must not loop forever.
+            await engine.handle_login_fields(page, item, seen)
+            self.assertEqual(submit.click.await_count, 2)
+        for host in ('login.microsoftonline.com', 'accounts.google.com'):
+            with self.subTest(host=host):
+                asyncio.run(run(host))
+
     def test_password_inside_frame_is_filled_once(self):
         engine = self.engine()
         root = MagicMock()

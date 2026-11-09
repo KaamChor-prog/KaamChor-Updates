@@ -225,7 +225,7 @@ class Engine:
         raise TimeoutError('Button unavailable: ' + label)
 
     async def handle_login_fields(self, page, item, attempted):
-        """Adobe, Microsoft and Google login; one submission per field/page."""
+        """Follow the visible provider step, allowing a bounded fresh email prompt."""
         for root in page.frames:
             if not trusted_login_url(root.url):
                 continue
@@ -263,10 +263,15 @@ class Engine:
             kind = 'password' if password else 'email'
             key = (root, root.url, kind)
             if key in attempted:
-                # Google can render a fresh, empty identifier input after a redirect.
-                # Refill that input, but never retry a submitted password.
-                if kind != 'email' or urlsplit(root.url).hostname != 'accounts.google.com' or await field.input_value(timeout=1500):
+                # Both providers can ask for the ID again at the same URL.
+                # Only refill an empty email prompt, once; passwords never retry.
+                repeat_key = (root, root.url, 'email-repeated')
+                if (kind != 'email'
+                        or urlsplit(root.url).hostname not in ('accounts.google.com', 'login.microsoftonline.com')
+                        or repeat_key in attempted
+                        or await field.input_value(timeout=1500)):
                     continue
+                attempted.add(repeat_key)
                 attempted.discard(key)
             # Retry fill only if submission never happened; do not repeat login attempts.
             await field.fill(item[kind], timeout=3000)
